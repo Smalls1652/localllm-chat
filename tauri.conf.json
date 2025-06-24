@@ -1,0 +1,27 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "LocalLLM Chat",
+  "version": "0.1.0",
+  "identifier": "online.smalls.locallm",
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [],
+    "security": {
+      "csp": null
+    }
+  },
+  "build": {
+    "removeUnusedCommands": false
+  },
+  "bundle": {
+    "active": true,
+    "targets": "app",
+    "category": "Utility",
+    "icon": [
+      "icons/32.png",
+      "icons/128.png",
+      "icons/256.png",
+      "icons/icon.icns"
+    ]
+  }
+}
