@@ -1,13 +1,13 @@
 use std::{collections::HashMap, path::PathBuf};
 
-use bollard::models::*;
-use bollard::query_parameters::{
-    ListContainersOptionsBuilder, ListNetworksOptions, RemoveContainerOptions,
-    StartContainerOptions, StopContainerOptions,
-};
 use bollard::{
     Docker,
-    query_parameters::{CreateContainerOptions, CreateImageOptions},
+    models::*,
+    query_parameters::{
+        CreateContainerOptionsBuilder, CreateImageOptionsBuilder, ListContainersOptionsBuilder,
+        ListNetworksOptionsBuilder, RemoveContainerOptionsBuilder, StartContainerOptionsBuilder,
+        StopContainerOptionsBuilder,
+    },
     secret::{ContainerCreateBody, NetworkCreateRequest},
 };
 use futures_util::StreamExt;
@@ -50,14 +50,9 @@ pub async fn pull_required_images() -> Result<(), AppError> {
 async fn pull_image(image: &str) -> Result<(), AppError> {
     let docker = Docker::connect_with_local_defaults().map_err(|e| AppError::DockerError(e))?;
 
-    let mut pull_stream = docker.create_image(
-        Some(CreateImageOptions {
-            from_image: Some(image.to_string()),
-            ..Default::default()
-        }),
-        None,
-        None,
-    );
+    let create_image_opts = CreateImageOptionsBuilder::new().from_image(image).build();
+
+    let mut pull_stream = docker.create_image(Some(create_image_opts), None, None);
 
     while let Some(msg) = pull_stream.next().await {
         match msg {
@@ -140,10 +135,9 @@ async fn create_openwebui_container(data_dir: &PathBuf) -> Result<(), AppError> 
 
     let docker = Docker::connect_with_local_defaults().map_err(|e| AppError::DockerError(e))?;
 
-    let container_opts = CreateContainerOptions {
-        name: Some("local_llm_openwebui".to_string()),
-        ..Default::default()
-    };
+    let create_container_opts = CreateContainerOptionsBuilder::new()
+        .name("local_llm_openwebui")
+        .build();
 
     let container_env = vec![
         "ENV=dev".to_string(),
@@ -191,15 +185,14 @@ async fn create_openwebui_container(data_dir: &PathBuf) -> Result<(), AppError> 
     };
 
     docker
-        .create_container(Some(container_opts), container_config)
+        .create_container(Some(create_container_opts), container_config)
         .await
         .map_err(|e| AppError::DockerError(e))?;
 
+    let start_container_opts = StartContainerOptionsBuilder::new().build();
+
     docker
-        .start_container(
-            "local_llm_openwebui",
-            Some(StartContainerOptions::default()),
-        )
+        .start_container("local_llm_openwebui", Some(start_container_opts))
         .await
         .map_err(|e| AppError::DockerError(e))?;
 
@@ -214,10 +207,9 @@ async fn create_openwebui_container(data_dir: &PathBuf) -> Result<(), AppError> 
 async fn create_tika_container() -> Result<(), AppError> {
     let docker = Docker::connect_with_local_defaults().map_err(|e| AppError::DockerError(e))?;
 
-    let container_opts = CreateContainerOptions {
-        name: Some("local_llm_tika".to_string()),
-        ..Default::default()
-    };
+    let create_container_opts = CreateContainerOptionsBuilder::new()
+        .name("local_llm_tika")
+        .build();
 
     let mut networks = HashMap::<String, EndpointSettings>::new();
     networks.insert("local_llm_backend".to_string(), EndpointSettings::default());
@@ -237,12 +229,14 @@ async fn create_tika_container() -> Result<(), AppError> {
     };
 
     docker
-        .create_container(Some(container_opts), container_config)
+        .create_container(Some(create_container_opts), container_config)
         .await
         .map_err(|e| AppError::DockerError(e))?;
 
+    let start_container_opts = StartContainerOptionsBuilder::new().build();
+
     docker
-        .start_container("local_llm_tika", Some(StartContainerOptions::default()))
+        .start_container("local_llm_tika", Some(start_container_opts))
         .await
         .map_err(|e| AppError::DockerError(e))?;
 
@@ -267,10 +261,12 @@ async fn delete_networks() -> Result<(), AppError> {
     let mut network_filters = HashMap::<String, Vec<String>>::new();
     network_filters.insert("name".to_string(), vec!["local_llm_".to_string()]);
 
+    let list_network_opts = ListNetworksOptionsBuilder::new()
+        .filters(&network_filters)
+        .build();
+
     let container_networks = docker
-        .list_networks(Some(ListNetworksOptions {
-            filters: Some(network_filters),
-        }))
+        .list_networks(Some(list_network_opts))
         .await
         .map_err(|e| AppError::DockerError(e))?;
 
@@ -302,13 +298,13 @@ async fn delete_containers() -> Result<(), AppError> {
     );
 
     println!("Getting containers");
-    let list_options = ListContainersOptionsBuilder::new()
+    let list_containers_opts = ListContainersOptionsBuilder::new()
         .all(true)
         .filters(&container_filters)
         .build();
 
     let containers = docker
-        .list_containers(Some(list_options))
+        .list_containers(Some(list_containers_opts))
         .await
         .map_err(|e| AppError::DockerError(e))?;
 
@@ -316,18 +312,16 @@ async fn delete_containers() -> Result<(), AppError> {
         let container_names = container.names.unwrap();
         let container_name = container_names.first().unwrap().trim_matches('/');
 
+        let stop_container_opts = StopContainerOptionsBuilder::new().build();
+
         let _ = docker
-            .stop_container(&container_name, Some(StopContainerOptions::default()))
+            .stop_container(&container_name, Some(stop_container_opts))
             .await;
 
+        let remove_container_opts = RemoveContainerOptionsBuilder::new().force(true).build();
+
         docker
-            .remove_container(
-                &container_name,
-                Some(RemoveContainerOptions {
-                    force: true,
-                    ..Default::default()
-                }),
-            )
+            .remove_container(&container_name, Some(remove_container_opts))
             .await
             .map_err(|e| AppError::DockerError(e))?;
 
