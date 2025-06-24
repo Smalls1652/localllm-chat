@@ -24,4 +24,8 @@ pub enum AppError {
     /// An error occurred while interacting with the Docker API.
     #[error("Docker error: {0}")]
     DockerError(bollard::errors::Error),
+
+    /// An error occurred while serializing/deserializing YAML.
+    #[error("YAML error: {0}")]
+    YamlError(serde_yaml::Error)
 }

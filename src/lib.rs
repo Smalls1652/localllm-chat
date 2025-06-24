@@ -2,6 +2,9 @@ use tauri::RunEvent;
 
 use crate::error::AppError;
 
+/// Config options for the app.
+pub mod config;
+
 /// Functions for interacting with container APIs (Docker or Docker-compatible).
 pub mod container;
 
@@ -44,6 +47,16 @@ pub async fn run() -> Result<(), AppError> {
         return Err(setup_error);
     }
 
+    let app_config = match utils::get_app_config(&app.handle()) {
+        Ok(config) => config,
+
+        Err(err) => {
+            utils::show_setup_local_appdata_error(&app.handle(), &err);
+
+            return Err(err);
+        }
+    };
+
     // Get the data directory path for the Open WebUI container.
     let data_dir = match utils::get_app_container_dir(&app.handle()) {
         Ok(container_dir) => container_dir.join("data"),
@@ -57,7 +70,7 @@ pub async fn run() -> Result<(), AppError> {
 
     // Pull the container images needed for the application.
     println!("Pulling container images");
-    if let Err(container_err) = container::pull_required_images().await {
+    if let Err(container_err) = container::pull_required_images(&app_config).await {
         utils::show_docker_error(&app.handle(), &container_err);
 
         return Err(container_err);
@@ -67,7 +80,7 @@ pub async fn run() -> Result<(), AppError> {
     // This *shouldn't* be needed, but, in the event that something catastrophically
     // occurred in a previous session, this can clean up those leftover resources.
     println!("Cleaning up previous containers, if needed");
-    if let Err(container_err) = container::cleanup_infrastructure().await {
+    if let Err(container_err) = container::cleanup_infrastructure(&app_config).await {
         utils::show_docker_error(&app.handle(), &container_err);
 
         return Err(container_err);
@@ -75,10 +88,10 @@ pub async fn run() -> Result<(), AppError> {
 
     // Start the containers.
     println!("Starting container");
-    if let Err(container_err) = container::create_infrastructure(&data_dir).await {
+    if let Err(container_err) = container::create_infrastructure(&app_config, &data_dir).await {
         utils::show_docker_error(&app.handle(), &container_err);
 
-        container::cleanup_infrastructure().await?;
+        container::cleanup_infrastructure(&app_config).await?;
 
         return Err(container_err);
     }
@@ -88,12 +101,12 @@ pub async fn run() -> Result<(), AppError> {
 
     // Run the app.
     #[allow(unused_variables)]
-    app.run(|app_handle, event| match event {
+    app.run(move |app_handle, event| match event {
         RunEvent::Exit => {
             // On exit, remove the containers and networks created.
             println!("Cleaning up containers, if needed");
             let cleanup_result = tokio::task::block_in_place(|| {
-                tauri::async_runtime::block_on(async { container::cleanup_infrastructure().await })
+                tauri::async_runtime::block_on(async { container::cleanup_infrastructure(&app_config).await })
             });
 
             if let Err(container_err) = cleanup_result {

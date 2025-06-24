@@ -12,23 +12,39 @@ use bollard::{
 };
 use futures_util::StreamExt;
 
-use crate::error::AppError;
+use crate::{
+    config::{LlmChatConfig, LlmChatConfigExtraBackendService},
+    error::AppError,
+};
 
 /// The Open WebUI container image name and tag.
-const OPEN_WEBUI_IMAGE: &'static str = "ghcr.io/open-webui/open-webui:latest";
-
-/// The Playwright container image name and tag.
-const PLAYWRIGHT_IMAGE: &'static str = "mcr.microsoft.com/playwright:v1.49.1-noble";
+const OPEN_WEBUI_IMAGE_BASE: &'static str = "ghcr.io/open-webui/open-webui";
 
 /// The Apache Tika container image name and tag.
-const TIKA_IMAGE: &'static str = "docker.io/apache/tika:latest-full";
+const TIKA_IMAGE_BASE: &'static str = "docker.io/apache/tika";
 
 /// Pulls the required container images.
-pub async fn pull_required_images() -> Result<(), AppError> {
-    let images = vec![OPEN_WEBUI_IMAGE, PLAYWRIGHT_IMAGE, TIKA_IMAGE];
+/// 
+/// # Arguments
+/// 
+/// * `app_config` - The application configuration.
+pub async fn pull_required_images(app_config: &LlmChatConfig) -> Result<(), AppError> {
+    let open_webui_image = format!(
+        "{}:{}",
+        OPEN_WEBUI_IMAGE_BASE, app_config.openwebui_image_tag
+    );
+    let tika_image = format!("{}:{}", TIKA_IMAGE_BASE, app_config.tika_image_tag);
+
+    let mut images = vec![open_webui_image, tika_image];
+
+    if let Some(extra_services) = app_config.extra_backend_services.clone() {
+        for extra_service in extra_services {
+            images.push(extra_service.image);
+        }
+    }
 
     for image in images {
-        pull_image(image).await?;
+        pull_image(&image).await?;
     }
 
     Ok(())
@@ -73,12 +89,21 @@ async fn pull_image(image: &str) -> Result<(), AppError> {
 /// * Running Open WebUI.
 /// * Running any backend services needed for Open WebUI.
 ///   * For example, Apache Tika.
-pub async fn create_infrastructure(data_dir: &PathBuf) -> Result<(), AppError> {
+pub async fn create_infrastructure(
+    app_config: &LlmChatConfig,
+    data_dir: &PathBuf,
+) -> Result<(), AppError> {
     let _ = create_frontend_network().await?;
     let _ = create_backend_network().await?;
 
-    create_openwebui_container(data_dir).await?;
-    create_tika_container().await?;
+    create_openwebui_container(app_config, data_dir).await?;
+    create_tika_container(app_config).await?;
+
+    if let Some(extra_services) = app_config.extra_backend_services.clone() {
+        for extra_service in extra_services {
+            create_extra_service_container(&extra_service).await?;
+        }
+    }
 
     Ok(())
 }
@@ -125,12 +150,20 @@ async fn create_backend_network() -> Result<NetworkCreateResponse, AppError> {
 ///
 /// # Arguments
 ///
+/// * `app_config` - The application configuration.
 /// * `data_dir` - The host path to data directory to mount into the container.
 ///
 /// # Notes
 ///
 /// The name of the container will always be `local_llm_openwebui`.
-async fn create_openwebui_container(data_dir: &PathBuf) -> Result<(), AppError> {
+async fn create_openwebui_container(
+    app_config: &LlmChatConfig,
+    data_dir: &PathBuf,
+) -> Result<(), AppError> {
+    let open_webui_image = format!(
+        "{}:{}",
+        OPEN_WEBUI_IMAGE_BASE, app_config.openwebui_image_tag
+    );
     let data_dir = data_dir.to_string_lossy().to_string();
 
     let docker = Docker::connect_with_local_defaults().map_err(|e| AppError::DockerError(e))?;
@@ -176,7 +209,7 @@ async fn create_openwebui_container(data_dir: &PathBuf) -> Result<(), AppError> 
     };
 
     let container_config = ContainerCreateBody {
-        image: Some(OPEN_WEBUI_IMAGE.to_string()),
+        image: Some(open_webui_image),
         env: Some(container_env),
         networking_config: Some(networking_config),
         exposed_ports: Some(container_ports),
@@ -200,11 +233,17 @@ async fn create_openwebui_container(data_dir: &PathBuf) -> Result<(), AppError> 
 }
 
 /// Creates and starts the Apache Tika container with Docker (or any Docker-compatible API).
+/// 
+/// # Arguments
+/// 
+/// * `app_config` - The application configuration.
 ///
 /// # Notes
 ///
 /// The name of the container will always be `local_llm_tika`.
-async fn create_tika_container() -> Result<(), AppError> {
+async fn create_tika_container(app_config: &LlmChatConfig) -> Result<(), AppError> {
+    let tika_image = format!("{}:{}", TIKA_IMAGE_BASE, app_config.tika_image_tag);
+
     let docker = Docker::connect_with_local_defaults().map_err(|e| AppError::DockerError(e))?;
 
     let create_container_opts = CreateContainerOptionsBuilder::new()
@@ -222,7 +261,7 @@ async fn create_tika_container() -> Result<(), AppError> {
     container_ports.insert("9998/tcp".to_string(), HashMap::default());
 
     let container_config = ContainerCreateBody {
-        image: Some(TIKA_IMAGE.to_string()),
+        image: Some(tika_image),
         networking_config: Some(networking_config),
         exposed_ports: Some(container_ports),
         ..Default::default()
@@ -243,10 +282,73 @@ async fn create_tika_container() -> Result<(), AppError> {
     Ok(())
 }
 
+/// Creates and starts an extra backend container with Docker (or any Docker-compatible API).
+/// 
+/// # Arguments
+/// 
+/// * `extra_service` - The extra service config.
+///
+/// # Notes
+///
+/// The name of the container will always be `local_llm_{name}`.
+async fn create_extra_service_container(
+    extra_service: &LlmChatConfigExtraBackendService,
+) -> Result<(), AppError> {
+    let container_name = format!("local_llm_{}", extra_service.name);
+
+    let docker = Docker::connect_with_local_defaults().map_err(|e| AppError::DockerError(e))?;
+
+    let create_container_opts = CreateContainerOptionsBuilder::new()
+        .name(&container_name)
+        .build();
+
+    let container_env = extra_service.env.clone();
+
+    let mut networks = HashMap::<String, EndpointSettings>::new();
+    networks.insert("local_llm_backend".to_string(), EndpointSettings::default());
+
+    let networking_config = NetworkingConfig {
+        endpoints_config: Some(networks),
+    };
+
+    let mut container_ports = HashMap::<String, HashMap<(), ()>>::new();
+    if let Some(ports) = extra_service.ports.clone() {
+        for port in ports {
+            container_ports.insert(port, HashMap::default());
+        }
+    }
+
+    let container_config = ContainerCreateBody {
+        image: Some(extra_service.image.clone()),
+        env: container_env,
+        networking_config: Some(networking_config),
+        exposed_ports: Some(container_ports),
+        ..Default::default()
+    };
+
+    docker
+        .create_container(Some(create_container_opts), container_config)
+        .await
+        .map_err(|e| AppError::DockerError(e))?;
+
+    let start_container_opts = StartContainerOptionsBuilder::new().build();
+
+    docker
+        .start_container(&container_name, Some(start_container_opts))
+        .await
+        .map_err(|e| AppError::DockerError(e))?;
+
+    Ok(())
+}
+
 /// Cleans up Docker (or any Docker-compatible API) resources created by the application.
-pub async fn cleanup_infrastructure() -> Result<(), AppError> {
+/// 
+/// # Arguments
+/// 
+/// * `app_config` - The application configuration.
+pub async fn cleanup_infrastructure(app_config: &LlmChatConfig) -> Result<(), AppError> {
     println!("Deleting containers...");
-    delete_containers().await?;
+    delete_containers(app_config).await?;
 
     println!("Deleting networks...");
     delete_networks().await?;
@@ -285,17 +387,26 @@ async fn delete_networks() -> Result<(), AppError> {
 }
 
 /// Delete the containers created by the application from Docker (or any Docker-compatible API).
-async fn delete_containers() -> Result<(), AppError> {
+/// 
+/// # Arguments
+/// 
+/// * `app_config` - The application configuration.
+async fn delete_containers(app_config: &LlmChatConfig) -> Result<(), AppError> {
     let docker = Docker::connect_with_local_defaults().map_err(|e| AppError::DockerError(e))?;
 
+    let mut container_names = vec![
+        "local_llm_openwebui".to_string(),
+        "local_llm_tika".to_string(),
+    ];
+
+    if let Some(extra_services) = app_config.extra_backend_services.clone() {
+        for extra_service in extra_services {
+            container_names.push(format!("local_llm_{}", extra_service.name));
+        }
+    }
+
     let mut container_filters = HashMap::<String, Vec<String>>::new();
-    container_filters.insert(
-        "name".to_string(),
-        vec![
-            "local_llm_openwebui".to_string(),
-            "local_llm_tika".to_string(),
-        ],
-    );
+    container_filters.insert("name".to_string(), container_names);
 
     println!("Getting containers");
     let list_containers_opts = ListContainersOptionsBuilder::new()

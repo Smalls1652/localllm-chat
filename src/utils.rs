@@ -4,7 +4,7 @@ use tauri::{AppHandle, Manager, Wry};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use tauri_plugin_http::reqwest;
 
-use crate::error::AppError;
+use crate::{config::LlmChatConfig, error::AppError};
 
 /// Sets up the local appdata directory for the application.
 ///
@@ -16,6 +16,44 @@ pub fn setup_local_appdata(app: &AppHandle<Wry>) -> Result<(), AppError> {
     ensure_container_data_dir_exists(&container_dir)?;
 
     Ok(())
+}
+
+/// Get the config for the app.
+/// 
+/// # Arguments
+/// 
+/// * `app` - The app handle.
+pub fn get_app_config(app: &AppHandle) -> Result<LlmChatConfig, AppError> {
+    let app_data_dir = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|e| AppError::TauriError(e))?;
+
+    let config_file_path = app_data_dir.join("config.yml");
+
+    let app_config = match config_file_path.exists() {
+        true => {
+            let config_file_contents =
+                std::fs::read(&config_file_path).map_err(|e| AppError::IOError(e))?;
+            let config_file_contents = String::from_utf8(config_file_contents)
+                .map_err(|_| AppError::GenericError("Failed to read config file".to_string()))?;
+
+            serde_yaml::from_str::<LlmChatConfig>(&config_file_contents).map_err(|e| AppError::YamlError(e))?
+        }
+
+        false => {
+            let default_config = LlmChatConfig::default();
+            let default_config_contents = serde_yaml::to_string::<LlmChatConfig>(&default_config)
+                .map_err(|e| AppError::YamlError(e))?;
+
+            std::fs::write(&config_file_path, &default_config_contents)
+                .map_err(|_| AppError::GenericError("Failed to write default config file".to_string()))?;
+
+            default_config
+        }
+    };
+
+    Ok(app_config)
 }
 
 /// Shows an error dialog for local appdata setup failure.
