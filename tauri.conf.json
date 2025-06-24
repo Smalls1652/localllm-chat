@@ -17,6 +17,13 @@
     "active": true,
     "targets": "app",
     "category": "Utility",
+    "copyright": "© 2025 Smalls.Online",
+    "homepage": "https://git.smalls.online/smalls/localllm-chat",
+    "publisher": "Smalls.Online",
+    "license": "MIT",
+    "licenseFile": "LICENSE",
+    "shortDescription": "A stupid way to run Open WebUI locally.",
+    "longDescription": "A stupid way to run Open WebUI locally without having to manage the container resources manually.",
     "icon": [
       "icons/32.png",
       "icons/128.png",
