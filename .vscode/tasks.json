@@ -1,4 +1,59 @@
 {
     "version": "2.0.0",
-    "tasks": []
+    "tasks": [
+        {
+            "label": "Tauri: Watch",
+            "detail": "Run in dev mode.",
+            "icon": {
+                "id": "play",
+                "color": "terminal.ansiCyan"
+            },
+            "type": "process",
+            "command": "cargo",
+            "args": [
+                "tauri",
+                "dev"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": true
+            },
+            "isBackground": true,
+            "problemMatcher": "$rustc"
+        },
+        {
+            "label": "Tauri: Build macOS bundle",
+            "detail": "Build the app and make a macOS bundle.",
+            "icon": {
+                "id": "package",
+                "color": "terminal.ansiWhite"
+            },
+            "type": "process",
+            "command": "cargo",
+            "args": [
+                "tauri",
+                "build",
+                "--bundles=app"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": true
+            },
+            "problemMatcher": "$rustc"
+        }
+    ]
 }
