@@ -23,14 +23,45 @@ pub async fn run() -> Result<(), AppError> {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .setup(move |app| {
-            let _webview_window = tauri::WebviewWindowBuilder::new(
+            let webview_window_builder = tauri::WebviewWindowBuilder::new(
                 app,
                 "local_llm_chat_main",
                 tauri::WebviewUrl::App("http://localhost:11690".into()),
             )
             .title("LocalLLM Chat")
-            .inner_size(1280.0, 800.0)
-            .build()?;
+            .inner_size(1280.0, 800.0);
+
+            #[cfg(target_os = "macos")]
+            let webview_window_builder =
+                webview_window_builder.title_bar_style(tauri::TitleBarStyle::Transparent);
+
+            let webview_window = webview_window_builder.build()?;
+
+            // Gotta allow deprecated items in this section.
+            // The `cocoa` crate is basically disabled, but, as far as I can tell, the replacement
+            // doesn't allow for converting raw pointers to their specific counterparts.
+            // Maybe Tauri is aware of that?
+            #[allow(deprecated)]
+            #[cfg(target_os = "macos")]
+            {
+                use cocoa::appkit::NSWindow;
+                use cocoa::base::id;
+
+                let ns_window = webview_window.ns_window().unwrap() as id;
+                unsafe {
+                    use cocoa::appkit::NSColor;
+                    use cocoa::base::nil;
+
+                    let bg_color = NSColor::colorWithRed_green_blue_alpha_(
+                        nil,
+                        13.0 / 255.0,
+                        13.0 / 255.0,
+                        13.0 / 255.0,
+                        1.0,
+                    );
+                    ns_window.setBackgroundColor_(bg_color);
+                }
+            }
 
             Ok(())
         })
@@ -106,7 +137,9 @@ pub async fn run() -> Result<(), AppError> {
             // On exit, remove the containers and networks created.
             println!("Cleaning up containers, if needed");
             let cleanup_result = tokio::task::block_in_place(|| {
-                tauri::async_runtime::block_on(async { container::cleanup_infrastructure(&app_config).await })
+                tauri::async_runtime::block_on(async {
+                    container::cleanup_infrastructure(&app_config).await
+                })
             });
 
             if let Err(container_err) = cleanup_result {
