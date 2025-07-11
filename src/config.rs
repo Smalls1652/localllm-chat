@@ -45,11 +45,39 @@ pub struct LlmChatConfigExtraBackendService {
     #[serde(rename = "image")]
     pub image: String,
 
+    /// The command and args to run for the container.
+    #[serde(rename = "cmd", skip_serializing_if = "Option::is_none")]
+    pub cmd: Option<Vec<String>>,
+
     /// Environment variables for the service.
     #[serde(rename = "env", skip_serializing_if = "Option::is_none")]
     pub env: Option<Vec<String>>,
 
+    /// The user to run the container as.
+    #[serde(rename = "user", skip_serializing_if = "Option::is_none")]
+    pub user: Option<String>,
+
     /// Ports to expose within the backend network.
     #[serde(rename = "ports", skip_serializing_if = "Option::is_none")]
-    pub ports: Option<Vec<String>>
+    pub ports: Option<Vec<String>>,
+
+    /// Host volume bindings to add.
+    #[serde(rename = "volumeBindings", skip_serializing_if = "Option::is_none")]
+    pub volume_bindings: Option<Vec<BackendServiceHostVolumePathBinding>>,
+
+    /// The working directory to use in the container.
+    #[serde(rename = "workingDirectory", skip_serializing_if = "Option::is_none")]
+    pub working_directory: Option<String>,
+}
+
+/// Represents a host volume binding to add.
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct BackendServiceHostVolumePathBinding {
+    /// The path on the host machine to bind.
+    #[serde(rename = "hostPath")]
+    pub host_path: String,
+
+    /// The path in the container to mount to.
+    #[serde(rename = "containerPath")]
+    pub container_path: String
 }

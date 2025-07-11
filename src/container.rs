@@ -24,9 +24,9 @@ const OPEN_WEBUI_IMAGE_BASE: &'static str = "ghcr.io/open-webui/open-webui";
 const TIKA_IMAGE_BASE: &'static str = "docker.io/apache/tika";
 
 /// Pulls the required container images.
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `app_config` - The application configuration.
 pub async fn pull_required_images(app_config: &LlmChatConfig) -> Result<(), AppError> {
     let open_webui_image = format!(
@@ -233,9 +233,9 @@ async fn create_openwebui_container(
 }
 
 /// Creates and starts the Apache Tika container with Docker (or any Docker-compatible API).
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `app_config` - The application configuration.
 ///
 /// # Notes
@@ -283,9 +283,9 @@ async fn create_tika_container(app_config: &LlmChatConfig) -> Result<(), AppErro
 }
 
 /// Creates and starts an extra backend container with Docker (or any Docker-compatible API).
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `extra_service` - The extra service config.
 ///
 /// # Notes
@@ -318,11 +318,36 @@ async fn create_extra_service_container(
         }
     }
 
+    let host_config = match &extra_service.volume_bindings {
+        Some(volume_bindings) => {
+            let mut host_binds: Vec<String> = vec![];
+
+            for volume in volume_bindings {
+                host_binds.push(format!(
+                    "{host_path}:{container_path}",
+                    host_path = volume.host_path,
+                    container_path = volume.container_path
+                ));
+            }
+
+            Some(HostConfig {
+                binds: Some(host_binds),
+                ..Default::default()
+            })
+        }
+
+        None => None,
+    };
+
     let container_config = ContainerCreateBody {
         image: Some(extra_service.image.clone()),
+        cmd: extra_service.cmd.clone(),
         env: container_env,
         networking_config: Some(networking_config),
         exposed_ports: Some(container_ports),
+        host_config: host_config,
+        user: extra_service.user.clone(),
+        working_dir: extra_service.working_directory.clone(),
         ..Default::default()
     };
 
@@ -342,9 +367,9 @@ async fn create_extra_service_container(
 }
 
 /// Cleans up Docker (or any Docker-compatible API) resources created by the application.
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `app_config` - The application configuration.
 pub async fn cleanup_infrastructure(app_config: &LlmChatConfig) -> Result<(), AppError> {
     println!("Deleting containers...");
@@ -387,9 +412,9 @@ async fn delete_networks() -> Result<(), AppError> {
 }
 
 /// Delete the containers created by the application from Docker (or any Docker-compatible API).
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `app_config` - The application configuration.
 async fn delete_containers(app_config: &LlmChatConfig) -> Result<(), AppError> {
     let docker = Docker::connect_with_local_defaults().map_err(|e| AppError::DockerError(e))?;
