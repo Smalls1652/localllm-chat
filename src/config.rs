@@ -26,10 +26,12 @@ impl Default for LlmChatConfig {
     }
 }
 
+/// The default Open WebUI image tag to use.
 fn openwebui_image_tag_default() -> String {
     "latest".to_string()
 }
 
+/// The default Apache Tika image tag to use.
 fn tika_image_tag_default() -> String {
     "latest-full".to_string()
 }
