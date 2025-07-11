@@ -55,14 +55,6 @@ pub async fn pull_required_images(app_config: &LlmChatConfig) -> Result<(), AppE
 /// # Arguments
 ///
 /// * `image` - The image to pull.
-///
-/// # Examples
-///
-/// ```,no_run
-/// let image = "ubuntu:24.04";
-///
-/// pull_image(image).await;
-/// ```
 async fn pull_image(image: &str) -> Result<(), AppError> {
     let docker = Docker::connect_with_local_defaults().map_err(|e| AppError::DockerError(e))?;
 
