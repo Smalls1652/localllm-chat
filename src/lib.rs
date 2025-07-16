@@ -94,7 +94,8 @@ async fn setup_complete(app: AppHandle) -> Result<(), ()> {
         tauri::WebviewUrl::App("http://localhost:11690".into()),
     )
     .title("LocalLLM Chat")
-    .inner_size(1280.0, 800.0);
+    .inner_size(1280.0, 800.0)
+    .disable_drag_drop_handler();
 
     #[cfg(target_os = "macos")]
     let webview_window_builder =
@@ -116,7 +117,7 @@ pub async fn run() -> Result<(), AppError> {
         .invoke_handler(tauri::generate_handler![setup_complete])
         .setup(move |app| {
             spawn(setup(app.handle().clone()));
-            
+
             Ok(())
         })
         .build(tauri::generate_context!())
