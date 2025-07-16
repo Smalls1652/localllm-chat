@@ -92,8 +92,14 @@ pub async fn create_infrastructure(
     create_tika_container(app_config).await?;
 
     if let Some(extra_services) = app_config.extra_backend_services.clone() {
+        let mut extra_services_tasks = Vec::with_capacity(extra_services.len());
+
         for extra_service in extra_services {
-            create_extra_service_container(&extra_service).await?;
+            extra_services_tasks.push(tokio::spawn(create_extra_service_container(extra_service.clone())));
+        }
+
+        for task in extra_services_tasks {
+            task.await.unwrap()?;
         }
     }
 
@@ -284,7 +290,7 @@ async fn create_tika_container(app_config: &LlmChatConfig) -> Result<(), AppErro
 ///
 /// The name of the container will always be `local_llm_{name}`.
 async fn create_extra_service_container(
-    extra_service: &LlmChatConfigExtraBackendService,
+    extra_service: LlmChatConfigExtraBackendService,
 ) -> Result<(), AppError> {
     let container_name = format!("local_llm_{}", extra_service.name);
 
@@ -436,25 +442,39 @@ async fn delete_containers(app_config: &LlmChatConfig) -> Result<(), AppError> {
         .await
         .map_err(|e| AppError::DockerError(e))?;
 
+    let mut delete_tasks = Vec::with_capacity(containers.len());
+
     for container in containers {
-        let container_names = container.names.unwrap();
-        let container_name = container_names.first().unwrap().trim_matches('/');
-
-        let stop_container_opts = StopContainerOptionsBuilder::new().build();
-
-        let _ = docker
-            .stop_container(&container_name, Some(stop_container_opts))
-            .await;
-
-        let remove_container_opts = RemoveContainerOptionsBuilder::new().force(true).build();
-
-        docker
-            .remove_container(&container_name, Some(remove_container_opts))
-            .await
-            .map_err(|e| AppError::DockerError(e))?;
-
-        println!("Removed container '{}'", &container_name);
+        delete_tasks.push(tokio::spawn(delete_container(container)));
     }
+
+    for task in delete_tasks {
+        task.await.unwrap()?;
+    }
+
+    Ok(())
+}
+
+async fn delete_container(container: ContainerSummary) -> Result<(), AppError> {
+    let docker = Docker::connect_with_local_defaults().map_err(|e| AppError::DockerError(e))?;
+
+    let container_names = container.names.unwrap();
+    let container_name = container_names.first().unwrap().trim_matches('/');
+
+    let stop_container_opts = StopContainerOptionsBuilder::new().build();
+
+    let _ = docker
+        .stop_container(&container_name, Some(stop_container_opts))
+        .await;
+
+    let remove_container_opts = RemoveContainerOptionsBuilder::new().force(true).build();
+
+    docker
+        .remove_container(&container_name, Some(remove_container_opts))
+        .await
+        .map_err(|e| AppError::DockerError(e))?;
+
+    println!("Removed container '{}'", &container_name);
 
     Ok(())
 }
