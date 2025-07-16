@@ -116,35 +116,7 @@ pub async fn run() -> Result<(), AppError> {
         .invoke_handler(tauri::generate_handler![setup_complete])
         .setup(move |app| {
             spawn(setup(app.handle().clone()));
-
-            /*
-            // Gotta allow deprecated items in this section.
-            // The `cocoa` crate is basically disabled, but, as far as I can tell, the replacement
-            // doesn't allow for converting raw pointers to their specific counterparts.
-            // Maybe Tauri is aware of that?
-            #[allow(deprecated)]
-            #[cfg(target_os = "macos")]
-            {
-                use cocoa::appkit::NSWindow;
-                use cocoa::base::id;
-
-                let ns_window = webview_window.ns_window().unwrap() as id;
-                unsafe {
-                    use cocoa::appkit::NSColor;
-                    use cocoa::base::nil;
-
-                    let bg_color = NSColor::colorWithRed_green_blue_alpha_(
-                        nil,
-                        13.0 / 255.0,
-                        13.0 / 255.0,
-                        13.0 / 255.0,
-                        1.0,
-                    );
-                    ns_window.setBackgroundColor_(bg_color);
-                }
-            }
-            */
-
+            
             Ok(())
         })
         .build(tauri::generate_context!())
