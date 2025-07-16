@@ -38,9 +38,8 @@
             "type": "process",
             "command": "cargo",
             "args": [
-                "tauri",
-                "build",
-                "--bundles=app"
+                "make",
+                "build-tauri-app"
             ],
             "options": {
                 "cwd": "${workspaceFolder}"

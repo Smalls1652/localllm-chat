@@ -1,0 +1,105 @@
+@config "./tailwind.config.js";
+
+@import "tailwindcss";
+
+@theme {
+    --color-light-steel-blue: #C2D0E2;
+}
+
+@layer base {
+    h1, h2, h3, h4, h5, h6 {
+        @apply mb-3;
+    }
+
+    h1 {
+        @apply text-5xl;
+    }
+
+    h2 {
+        @apply text-4xl font-semibold;
+    }
+
+    h3 {
+        @apply text-3xl;
+    }
+
+    h4 {
+        @apply text-2xl font-bold;
+    }
+
+    h5 {
+        @apply text-xl font-bold;
+    }
+
+    h6 {
+        @apply text-lg font-bold;
+    }
+
+    p {
+        @apply mt-0 mb-4;
+    }
+
+    dl, ol, ul {
+        @apply list-disc;
+        @apply pl-8 mb-4;
+    }
+
+    dl dl, ol ol, ul ul {
+        @apply mb-0;
+    }
+
+    a {
+        @apply text-light-steel-blue cursor-pointer;
+        @apply transition-all ease-in-out duration-200;
+    }
+
+    a:hover {
+        @apply underline;
+    }
+}
+
+:root {
+    --gutter-x: 1.5rem;
+    --gutter-y: 0;
+}
+
+html {
+    height: 100%;
+}
+
+body {
+    @apply bg-gray-800 text-white;
+    
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: cover;
+    overflow-y: scroll;
+}
+
+.container {
+    @apply flex flex-col justify-center;
+    @apply m-0;
+    @apply text-center;
+
+    padding-top: 10vh;
+}
+
+.row {
+    @apply flex justify-center;
+}
+
+.branding {
+    @apply flex justify-center gap-x-2 items-center;
+
+}
+
+.branding > img {
+    max-width: 256px;
+    max-height: 256px;
+    min-width: 50px;
+    min-height: 50px;
+}
+
+.branding > div {
+    @apply text-5xl;
+}

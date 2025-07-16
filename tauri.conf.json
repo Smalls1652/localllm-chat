@@ -5,12 +5,19 @@
   "identifier": "online.smalls.locallm",
   "app": {
     "withGlobalTauri": true,
-    "windows": [],
+    "windows": [
+      {
+        "title": "LocalLLM Chat",
+        "label": "splashscreen",
+        "url": "splashscreen.html"
+      }
+    ],
     "security": {
       "csp": null
     }
   },
   "build": {
+    "frontendDist": "./public",
     "removeUnusedCommands": false
   },
   "bundle": {

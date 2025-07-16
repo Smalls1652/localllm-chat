@@ -1,0 +1,27 @@
+[tasks.build-tauri-app]
+category = "core"
+description = "Create a bundle for the app"
+
+dependencies = ["tauri-prebuild"]
+
+command = "cargo"
+args = ["tauri", "build", "--bundles=app"]
+
+[tasks.tauri-prebuild]
+category = "core"
+description = "Run prebuild tasks for Tauri"
+
+dependencies = ["compile-css"]
+
+[tasks.compile-css]
+category = "core"
+description = "Compile CSS with Tailwind"
+
+command = "tailwindcss"
+args = [
+    "--input",
+    "styles.css",
+    "--output",
+    "./public/main.css",
+    "--minify"
+]
